@@ -9,7 +9,15 @@ export type SearchType = (typeof SEARCH_TYPES)[number];
 /** Tipo informado pelo cliente: um tipo concreto ou detecção automática. */
 export type SearchTypeInput = SearchType | 'auto';
 
-export type RiskStatus = 'safe' | 'attention' | 'alert';
+/** `unverified`: nada foi consultado além da validação do formato (não implica "seguro"). */
+export type RiskStatus = 'safe' | 'attention' | 'alert' | 'unverified';
+
+/** Link para um serviço oficial em que a própria pessoa consulta os seus dados. */
+export interface ExternalLink {
+  label: string;
+  description: string;
+  url: string;
+}
 
 // ---------------------------------------------------------------- Request ---
 
@@ -120,6 +128,7 @@ export interface SearchResult {
   sections: DetailSection[];
   details: SearchDetails;
   sources: string[];
+  links: ExternalLink[];
   isMock: boolean;
   searchedAt: string;
   disclaimer: string;
@@ -158,4 +167,7 @@ export interface ProviderOutcome<T extends SearchDetails = SearchDetails> {
   sections: DetailSection[];
   sources: string[];
   isMock: boolean;
+  /** Força o status (padrão: derivado do exposureScore). */
+  status?: RiskStatus;
+  links?: ExternalLink[];
 }

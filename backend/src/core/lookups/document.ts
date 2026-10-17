@@ -1,4 +1,4 @@
-import type { CnpjDetails, CpfDetails, CpfStatus, ProviderOutcome } from '../../types/search.types';
+import type { CnpjDetails, CpfDetails, CpfStatus, ExternalLink, ProviderOutcome } from '../../types/search.types';
 import { cpfFiscalRegion, isValidCpf } from '../../utils/documents';
 import { formatCnpj, maskName } from '../../utils/mask';
 import { clampScore, formatDateBR } from '../../utils/score';
@@ -7,7 +7,26 @@ import { pick, randomDate, seededRandom } from '../random';
 const FAKE_NAMES = ['Fulano de Tal Souza', 'Beltrana Exemplo Lima', 'Ciclano Teste Rocha', 'Maria Fictícia Alves'] as const;
 const CPF_STATUS_WEIGHTED: readonly CpfStatus[] = ['REGULAR', 'REGULAR', 'REGULAR', 'REGULAR', 'PENDENTE DE REGULARIZAÇÃO', 'SUSPENSA'];
 
-/** Dados cadastrais fictícios. `null` quando não há provedor (só o que o número revela). */
+/** Serviços oficiais e gratuitos em que a própria pessoa consulta o seu CPF. */
+export const CPF_SELF_SERVICE_LINKS: ExternalLink[] = [
+  {
+    label: 'Receita Federal',
+    description: 'Situação cadastral do CPF (pede a data de nascimento)',
+    url: 'https://servicos.receita.fazenda.gov.br/servicos/cpf/consultasituacao/consultapublica.asp',
+  },
+  {
+    label: 'Registrato (Banco Central)',
+    description: 'Contas, empréstimos e chaves Pix no seu nome (login gov.br)',
+    url: 'https://www.bcb.gov.br/cidadaniafinanceira/registrato',
+  },
+  {
+    label: 'Serasa',
+    description: 'Score e pendências financeiras do seu CPF',
+    url: 'https://www.serasa.com.br/score/',
+  },
+];
+
+/** Dados cadastrais fictícios (modo mock do backend). */
 export function mockCpfRecord(cpf: string): { holderName: string; registrationStatus: CpfStatus } {
   const rand = seededRandom(`cpf:${cpf}`);
   return { holderName: maskName(pick(rand, FAKE_NAMES)), registrationStatus: pick(rand, CPF_STATUS_WEIGHTED) };
@@ -21,8 +40,33 @@ export function buildCpfOutcome(
 ): ProviderOutcome<CpfDetails> {
   const validChecksum = isValidCpf(cpf);
   const fiscalRegion = cpfFiscalRegion(cpf);
-  const holderName = record?.holderName ?? null;
-  const registrationStatus: CpfStatus = record?.registrationStatus ?? 'NÃO CONSULTADA';
+
+  // Sem provedor de dados cadastrais: só validamos o número. Não dizer "seguro".
+  if (!record) {
+    return {
+      details: { kind: 'cpf', validChecksum, fiscalRegion, holderName: null, registrationStatus: 'NÃO CONSULTADA' },
+      found: false,
+      exposureScore: 0,
+      status: 'unverified',
+      summary:
+        'Número de CPF válido. Não existe fonte pública e gratuita com dados cadastrais ou vazamentos de CPF, por isso nada além da validação foi verificado. Para consultar o seu próprio CPF, use os serviços oficiais abaixo.',
+      sections: [
+        {
+          title: 'Validação do número',
+          items: [
+            { label: 'Dígito verificador', value: validChecksum ? 'Válido' : 'Inválido' },
+            { label: 'Região fiscal de emissão', value: fiscalRegion },
+          ],
+        },
+      ],
+      sources: [source],
+      links: CPF_SELF_SERVICE_LINKS,
+      isMock,
+    };
+  }
+
+  const holderName = record.holderName;
+  const registrationStatus = record.registrationStatus;
 
   const irregular = registrationStatus !== 'REGULAR' && registrationStatus !== 'NÃO CONSULTADA';
   const exposureScore = clampScore((holderName ? 25 : 10) + (irregular ? 45 : 0));

@@ -1,5 +1,5 @@
-import { StyleSheet, View } from 'react-native';
-import { Avatar, Button, Card, Chip, Divider, ProgressBar, Text } from 'react-native-paper';
+import { Linking, StyleSheet, View } from 'react-native';
+import { Avatar, Button, Card, Chip, Divider, List, ProgressBar, Text } from 'react-native-paper';
 import { STATUS_META } from '../theme/theme';
 import type { DetailSection, SearchResult } from '../types/api';
 import { TYPE_LABELS } from '../utils/searchTypes';
@@ -24,15 +24,17 @@ export function ResultCard({ result, onNewSearch }: Props) {
           left={(props) => <Avatar.Icon {...props} icon={meta.icon} color={meta.color} style={{ backgroundColor: meta.background }} />}
         />
         <Card.Content style={styles.gap}>
-          <View>
-            <View style={styles.scoreRow}>
-              <Text variant="labelLarge">Score de Exposição</Text>
-              <Text variant="titleMedium" style={{ color: meta.color, fontWeight: '700' }}>
-                {result.exposureScore}/100
-              </Text>
+          {result.status !== 'unverified' && (
+            <View>
+              <View style={styles.scoreRow}>
+                <Text variant="labelLarge">Score de Exposição</Text>
+                <Text variant="titleMedium" style={{ color: meta.color, fontWeight: '700' }}>
+                  {result.exposureScore}/100
+                </Text>
+              </View>
+              <ProgressBar progress={result.exposureScore / 100} color={meta.color} style={styles.progress} />
             </View>
-            <ProgressBar progress={result.exposureScore / 100} color={meta.color} style={styles.progress} />
-          </View>
+          )}
           <Text variant="bodyMedium">{result.summary}</Text>
           {result.isMock && (
             <Chip icon="flask-outline" compact style={styles.mockChip}>
@@ -60,6 +62,23 @@ export function ResultCard({ result, onNewSearch }: Props) {
           )}
         </Card.Content>
       </Card>
+
+      {/* --- Serviços oficiais para a própria pessoa consultar --- */}
+      {result.links.length > 0 && (
+        <Card mode="outlined" style={styles.card}>
+          <Card.Title title="Consulte o seu próprio CPF (grátis)" titleVariant="titleMedium" />
+          {result.links.map((link) => (
+            <List.Item
+              key={link.url}
+              title={link.label}
+              description={link.description}
+              left={(props) => <List.Icon {...props} icon="open-in-new" />}
+              onPress={() => void Linking.openURL(link.url)}
+              accessibilityRole="link"
+            />
+          ))}
+        </Card>
+      )}
 
       <Text variant="bodySmall" style={styles.footer}>
         Fontes: {result.sources.join(', ')} · {new Date(result.searchedAt).toLocaleString('pt-BR')}
