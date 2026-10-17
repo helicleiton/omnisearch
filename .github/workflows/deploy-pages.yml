@@ -1,0 +1,63 @@
+# Publica a versão web do app (modo fontes abertas, sem backend) no GitHub Pages.
+name: Deploy web no GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Instalar dependências
+        working-directory: mobile
+        run: npm ci
+
+      - name: Exportar web
+        working-directory: mobile
+        env:
+          # Subcaminho do site: https://<usuario>.github.io/<repositorio>
+          EXPO_BASE_URL: /${{ github.event.repository.name }}
+          # Vazio = sem backend: consultas em fontes abertas direto do navegador.
+          EXPO_PUBLIC_API_URL: ''
+        run: npx expo export --platform web
+
+      - name: Ajustes para o GitHub Pages
+        working-directory: mobile/dist
+        run: |
+          cp index.html 404.html
+          touch .nojekyll
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: mobile/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
